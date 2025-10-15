@@ -19,6 +19,4 @@ notebook = ["jupyter"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
+packages = ["evo_neuro_bench"]
