@@ -12,12 +12,22 @@ __all__ = ["ModelAdapter"]
 # Adapter: auto head to n_actions; optional tiny memory (off by default)
 # ===============================================================
 class ModelAdapter(nn.Module):
-    def __init__(self, base: nn.Module, n_actions: int, use_memory: bool = False, mem_dim: int = 64):
+    def __init__(
+        self,
+        base: nn.Module,
+        n_actions: int,
+        use_memory: bool = False,
+        mem_dim: int = 64,
+        prefer_base_logits: bool = False,
+        abstract_key: str = "abstract_logits",
+    ):
         super().__init__()
         self.base = base
         self.n_actions = n_actions
         self.use_memory = use_memory
         self.mem_dim = mem_dim
+        self.prefer_base_logits = prefer_base_logits
+        self.abstract_key = abstract_key
         self._head = None
         self._mem = None
         self._h = None
@@ -35,14 +45,22 @@ class ModelAdapter(nn.Module):
 
     def forward(self, obs: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:  # type: ignore[override]
         out = self.base(obs)
-        motor = out["motor"]
-        if self._head is None:
-            self._lazy_init(motor.size(-1), motor.device)
-        if self.use_memory:
-            if (self._h is None) or (self._h.size(0) != motor.size(0)):
-                self.reset_memory(B=motor.size(0), device=motor.device)
-            self._h = self._mem(motor, self._h)
-            logits = self._head(self._h)
-        else:
-            logits = self._head(motor)
+
+        logits = None
+        if self.prefer_base_logits and self.abstract_key in out:
+            base_logits = out[self.abstract_key]
+            if base_logits.size(-1) == self.n_actions:
+                logits = base_logits
+
+        if logits is None:
+            motor = out["motor"]
+            if self._head is None:
+                self._lazy_init(motor.size(-1), motor.device)
+            if self.use_memory:
+                if (self._h is None) or (self._h.size(0) != motor.size(0)):
+                    self.reset_memory(B=motor.size(0), device=motor.device)
+                self._h = self._mem(motor, self._h)
+                logits = self._head(self._h)
+            else:
+                logits = self._head(motor)
         return logits, out

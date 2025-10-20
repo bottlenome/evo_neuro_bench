@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 
-from ..utils import D_AUDIT, D_PROP, D_SOMATO, D_VISION, MLP
+from ..utils import D_AUDIT, D_PROP, D_SOMATO, D_VISION, MLP, N_ABSTRACT_ACTIONS
 from .common import Cerebellum
 from .fish import SpinalMixer
 
@@ -24,12 +24,13 @@ class HumanCortexV4(nn.Module):
       - Descending制御ゲインをSpinalMixerに追加
     """
 
-    def __init__(self, motor_dim=20, d_emb=64, wm_dim=128, loops=2):
+    def __init__(self, motor_dim=20, d_emb=64, wm_dim=128, loops=2, abstract_dim=None):
         super().__init__()
         self.motor_dim = motor_dim
         self.wm_dim = wm_dim
         self.d_emb = d_emb
         self.loops = loops
+        self.abstract_dim = abstract_dim or N_ABSTRACT_ACTIONS
 
         # 感覚埋め込み
         self.tv = MLP(D_VISION, 128, d_emb, depth=2)
@@ -67,6 +68,7 @@ class HumanCortexV4(nn.Module):
 
         # 下行性ゲイン
         self.desc_gain = nn.Sequential(nn.Linear(wm_dim, motor_dim), nn.Tanh())
+        self.abstract_head = nn.Linear(wm_dim, self.abstract_dim)
 
     def forward(self, x):  # type: ignore[override]
         B = x["vision"].size(0)
@@ -107,5 +109,6 @@ class HumanCortexV4(nn.Module):
         # 脊髄統合
         ctx = torch.cat([x["somatosensory"], x["proprioception"]], -1)
         motor, gate = self.spinal_mixer(reflex, volitional, ctx)
+        abstract_logits = self.abstract_head(mem)
 
-        return {"motor": motor, "gate": gate, "wm": mem}
+        return {"motor": motor, "gate": gate, "wm": mem, "abstract_logits": abstract_logits}
