@@ -1,6 +1,6 @@
 """High level benchmark runner for Evo-Neuro models."""
 
-from typing import Dict
+from typing import Any, Dict
 
 import torch
 
@@ -18,6 +18,43 @@ from .tasks import (
 from .utils import compute_efficiency, compute_tal_metrics, set_seed
 
 
+TASK_SETTINGS: Dict[str, Dict[str, Any]] = {
+    "train_hd_jellyfish": {"n_actions": 3, "use_memory": False},
+    "train_reversal": {"n_actions": 2, "use_memory": False},
+    "train_detour": {"n_actions": 3, "use_memory": False},
+    "train_local_reflex": {"n_actions": 3, "use_memory": False},
+    "train_rpm_mini": {
+        "n_actions": 3,
+        "use_memory": False,
+        "prefer_base_logits": True,
+        "logit_key": "abstract_logits",
+    },
+    "train_arc_mini": {
+        "n_actions": 3,
+        "use_memory": False,
+        "prefer_base_logits": True,
+        "logit_key": "abstract_logits",
+    },
+    "train_grid_firststep": {
+        "n_actions": 3,
+        "use_memory": False,
+        "prefer_base_logits": True,
+        "logit_key": "abstract_logits",
+    },
+}
+
+
+def _make_agent(base, task_key: str, device: str):
+    cfg = TASK_SETTINGS[task_key]
+    return ModelAdapter(
+        base,
+        n_actions=cfg["n_actions"],
+        use_memory=cfg.get("use_memory", False),
+        prefer_base_logits=cfg.get("prefer_base_logits", False),
+        logit_key=cfg.get("logit_key"),
+    ).to(device)
+
+
 def run_benchmark(device: str | None = None, jelly_epochs=3, rev_steps=1500, batch_size=128, detour_epochs=15):
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device:", device)
@@ -32,28 +69,28 @@ def run_benchmark(device: str | None = None, jelly_epochs=3, rev_steps=1500, bat
         print(f"Model: {name}")
         # Jellyfish
         base.load_state_dict(init_state, strict=True)
-        agent = ModelAdapter(base, n_actions=3, use_memory=False).to(device)
+        agent = _make_agent(base, "train_hd_jellyfish", device)
         jelly_acc, jelly_curve = train_hd_jellyfish(agent, device=device, epochs=jelly_epochs, batch_size=batch_size)
         j_ttc, j_auc, j_asy = compute_tal_metrics(jelly_curve, criterion=0.90, window=100, budget=2000)
         j_eff = compute_efficiency(j_auc, params, trials=2000)
 
         # Reversal
         base.load_state_dict(init_state, strict=True)
-        agent = ModelAdapter(base, n_actions=2, use_memory=False).to(device)
+        agent = _make_agent(base, "train_reversal", device)
         pre, post, rev_curve = train_reversal(agent, device=device, steps=rev_steps)
         rev_ttc, rev_auc, rev_asy = compute_tal_metrics(rev_curve, criterion=0.80, window=200, budget=rev_steps)
         rev_eff = compute_efficiency(rev_auc, params, trials=rev_steps)
 
         # Detour
         base.load_state_dict(init_state, strict=True)
-        agent = ModelAdapter(base, n_actions=3, use_memory=False).to(device)
+        agent = _make_agent(base, "train_detour", device)
         detour_acc, detour_curve = train_detour(agent, device=device, epochs=detour_epochs, batch_size=batch_size)
         detour_ttc, detour_auc, detour_asy = compute_tal_metrics(detour_curve, criterion=0.85, window=200, budget=3000)
         detour_eff = compute_efficiency(detour_auc, params, trials=3000)
 
         # Local reflex
         base.load_state_dict(init_state, strict=True)
-        agent = ModelAdapter(base, n_actions=3, use_memory=False).to(device)
+        agent = _make_agent(base, "train_local_reflex", device)
         reflex_acc, reflex_curve = train_local_reflex(agent, device=device, epochs=15)
         reflex_ttc, reflex_auc, reflex_asy = compute_tal_metrics(reflex_curve, criterion=0.85, window=200, budget=3000)
         reflex_eff = compute_efficiency(reflex_auc, params, trials=3000)
@@ -84,19 +121,19 @@ def run_benchmark(device: str | None = None, jelly_epochs=3, rev_steps=1500, bat
 
         # RPM-Mini
         base.load_state_dict(init_state, strict=True)
-        agent = ModelAdapter(base, n_actions=3, use_memory=False).to(device)
+        agent = _make_agent(base, "train_rpm_mini", device)
         rpm_acc, rpm_curve = train_rpm_mini(agent, device=device, epochs=80, batch_size=batch_size)
         rpm_ttc, rpm_auc, rpm_asy = compute_tal_metrics(rpm_curve, criterion=0.75, window=200, budget=3000)
 
         # ARC-Mini
         base.load_state_dict(init_state, strict=True)
-        agent = ModelAdapter(base, n_actions=3, use_memory=False).to(device)
+        agent = _make_agent(base, "train_arc_mini", device)
         arc_acc, arc_curve = train_arc_mini(agent, device=device, epochs=80, batch_size=batch_size)
         arc_ttc, arc_auc, arc_asy = compute_tal_metrics(arc_curve, criterion=0.75, window=200, budget=3000)
 
         # Grid-FirstStep
         base.load_state_dict(init_state, strict=True)
-        agent = ModelAdapter(base, n_actions=3, use_memory=False).to(device)
+        agent = _make_agent(base, "train_grid_firststep", device)
         gpf_acc, gpf_curve = train_grid_firststep(agent, device=device, epochs=50, batch_size=batch_size)
         gpf_ttc, gpf_auc, gpf_asy = compute_tal_metrics(gpf_curve, criterion=0.75, window=200, budget=3000)
 
