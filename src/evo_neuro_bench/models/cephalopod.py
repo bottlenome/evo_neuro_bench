@@ -2,6 +2,7 @@
 
 import torch
 import torch.nn as nn
+from typing import Optional
 
 from ..utils import D_SOMATO, D_VISION
 
@@ -53,7 +54,14 @@ class CephalopodBrainV3(nn.Module):
     - brachial ganglia（腕神経節）: 反射経路＋中央コマンド統合
     """
 
-    def __init__(self, arms=8, central_dim=64, motor_dim=4, re_loops=3):
+    def __init__(
+        self,
+        arms=8,
+        central_dim=64,
+        motor_dim=4,
+        re_loops=3,
+        abstract_dim: Optional[int] = 3,
+    ):
         super().__init__()
         self.arms = arms
         self.central_dim = central_dim
@@ -87,6 +95,9 @@ class CephalopodBrainV3(nn.Module):
         )
 
         self.out_act = nn.Tanh()
+        self.abstract_head = (
+            nn.Linear(central_dim, abstract_dim) if abstract_dim is not None else None
+        )
 
     def forward(self, x):  # type: ignore[override]
         """
@@ -123,4 +134,11 @@ class CephalopodBrainV3(nn.Module):
             mi = self.brachial_ganglia[i](x["somatosensory"], central_cmd)
             motors.append(mi)
         motor = self.out_act(torch.cat(motors, dim=-1))
-        return {"motor": motor, "central_command": central_cmd}
+        abstract_logits = (
+            self.abstract_head(central_cmd) if self.abstract_head is not None else None
+        )
+        return {
+            "motor": motor,
+            "central_command": central_cmd,
+            "abstract_logits": abstract_logits,
+        }

@@ -2,6 +2,7 @@
 
 import torch
 import torch.nn as nn
+from typing import Optional
 
 from ..utils import D_OLFACT, D_PROP, D_SOMATO, D_VISION, MLP
 from .common import Cerebellum
@@ -46,7 +47,13 @@ class FishBrainV3(nn.Module):
       - 反射経路は従来通り維持
     """
 
-    def __init__(self, motor_dim=12, loops=2, hidden_dim=64):
+    def __init__(
+        self,
+        motor_dim=12,
+        loops=2,
+        hidden_dim=64,
+        abstract_dim: Optional[int] = 3,
+    ):
         super().__init__()
         self.loops = loops
         self.hidden_dim = hidden_dim
@@ -70,6 +77,9 @@ class FishBrainV3(nn.Module):
         # --- 脊髄統合 ---
         ctx_dim = D_SOMATO + D_PROP
         self.spinal_mixer = SpinalMixer(motor_dim=motor_dim, ctx_dim=ctx_dim)
+        self.abstract_head = (
+            nn.Linear(motor_dim, abstract_dim) if abstract_dim is not None else None
+        )
 
     def forward(self, x):  # type: ignore[override]
         B = x["vision"].size(0)
@@ -93,5 +103,8 @@ class FishBrainV3(nn.Module):
         # --- 脊髄統合 ---
         ctx = torch.cat([x["somatosensory"], x["proprioception"]], -1)
         motor, gate = self.spinal_mixer(reflex, volitional, ctx)
+        abstract_logits = (
+            self.abstract_head(volitional) if self.abstract_head is not None else None
+        )
 
-        return {"motor": motor, "gate": gate}
+        return {"motor": motor, "gate": gate, "abstract_logits": abstract_logits}
