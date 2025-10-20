@@ -23,6 +23,7 @@ __all__ = [
     "D_AUDIT",
     "D_PROP",
     "INPUT_DIM",
+    "N_ABSTRACT_ACTIONS",
     "make_obs",
     "MLP",
     "FrozenObsMixer",
@@ -56,6 +57,11 @@ def set_seed(seed: int = 0) -> None:
 # -----------------------------
 D_VISION, D_OLFACT, D_SOMATO, D_AUDIT, D_PROP = 128, 32, 60, 64, 16
 INPUT_DIM = D_VISION + D_OLFACT + D_SOMATO + D_AUDIT + D_PROP
+
+# -----------------------------
+# Abstract task defaults
+# -----------------------------
+N_ABSTRACT_ACTIONS = 8
 
 
 # -----------------------------

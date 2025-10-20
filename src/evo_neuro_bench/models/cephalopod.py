@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 
-from ..utils import D_SOMATO, D_VISION
+from ..utils import D_SOMATO, D_VISION, N_ABSTRACT_ACTIONS
 
 __all__ = ["ReflexArc", "BrachialGanglion", "CephalopodBrainV3"]
 
@@ -53,7 +53,7 @@ class CephalopodBrainV3(nn.Module):
     - brachial ganglia（腕神経節）: 反射経路＋中央コマンド統合
     """
 
-    def __init__(self, arms=8, central_dim=64, motor_dim=4, re_loops=3):
+    def __init__(self, arms=8, central_dim=64, motor_dim=4, re_loops=3, abstract_dim=None):
         super().__init__()
         self.arms = arms
         self.central_dim = central_dim
@@ -61,6 +61,7 @@ class CephalopodBrainV3(nn.Module):
         self.re_loops = re_loops
         self.sensory_dim = D_SOMATO
         self.visual_dim = D_VISION
+        self.abstract_dim = abstract_dim or N_ABSTRACT_ACTIONS
 
         # --- 視葉 ---
         self.optic_in = nn.Linear(self.visual_dim, central_dim)
@@ -87,6 +88,7 @@ class CephalopodBrainV3(nn.Module):
         )
 
         self.out_act = nn.Tanh()
+        self.abstract_head = nn.Linear(self.central_dim, self.abstract_dim)
 
     def forward(self, x):  # type: ignore[override]
         """
@@ -123,4 +125,5 @@ class CephalopodBrainV3(nn.Module):
             mi = self.brachial_ganglia[i](x["somatosensory"], central_cmd)
             motors.append(mi)
         motor = self.out_act(torch.cat(motors, dim=-1))
-        return {"motor": motor, "central_command": central_cmd}
+        abstract_logits = self.abstract_head(central_cmd)
+        return {"motor": motor, "central_command": central_cmd, "abstract_logits": abstract_logits}
